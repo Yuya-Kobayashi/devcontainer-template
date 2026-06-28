@@ -5,9 +5,13 @@ The egress firewall and locked-down sudoers in `.devcontainer/` are the primary
 controls. This hook adds policy-level checks that catch attempts before they
 reach the kernel:
 
-  1. `gh` / `git` commands targeting any GitHub repo other than this one (the
-     repo is derived from the `origin` remote; override with
-     $BASH_GUARD_ALLOWED_REPO, e.g. "owner/name").
+  1. Destructive `gh repo` subcommands (delete/transfer/archive/rename/fork) and
+     `gh repo create`, on any repo. Repo *scope* is intentionally NOT enforced:
+     this checkout may operate on any repo the gh auth token (PAT) can reach, and
+     that token's scope — not a regex in this hook — is the real, enforceable
+     boundary. A string-matching allowlist here is bypassable, so it would only
+     give a false sense of security; the blocks that remain guard against
+     irreversible actions regardless of which repo they target.
   2. Any `sudo` invocation. sudoers permits exactly one command (the firewall
      init) and only so the container lifecycle can run it; the agent never
      should, so this hook denies sudo outright.
@@ -33,35 +37,6 @@ PROJECT_DIR = os.environ.get("CLAUDE_PROJECT_DIR") or os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 
-
-def _detect_allowed_repo():
-    """The `owner/name` this checkout is allowed to touch on GitHub.
-
-    Resolution order: $BASH_GUARD_ALLOWED_REPO, then the `origin` remote URL.
-    Returns None when neither is available — in that case the repo-equality
-    checks below become permissive (we can't know what's foreign), but the
-    destructive-subcommand and sudo blocks still apply."""
-    env = os.environ.get("BASH_GUARD_ALLOWED_REPO")
-    if env:
-        return env.strip().removesuffix(".git")
-    try:
-        r = subprocess.run(
-            ["git", "-C", PROJECT_DIR, "remote", "get-url", "origin"],
-            capture_output=True, text=True, timeout=3,
-        )
-        if r.returncode != 0:
-            return None
-        url = r.stdout.strip().rstrip("/")
-        if url.endswith(".git"):
-            url = url[:-4]
-        # https://github.com/owner/name  or  git@github.com:owner/name
-        m = re.search(r"[:/]([^/:]+/[^/:]+)$", url)
-        return m.group(1) if m else None
-    except (OSError, subprocess.SubprocessError):
-        return None
-
-
-ALLOWED_REPO = _detect_allowed_repo()
 
 HOME = os.path.expanduser("~")
 SENSITIVE_PATHS = [
@@ -107,74 +82,21 @@ def deny(reason: str) -> None:
     sys.exit(0)
 
 
-def is_placeholder_repo(repo: str) -> bool:
-    """gh expands the `:owner`/`:repo` (and `{owner}`/`{repo}`) placeholders to
-    the *current* repository, so `gh api repos/:owner/:repo/...` targets this
-    repo, not a foreign one — never block it."""
-    return ":" in repo or "{" in repo
-
-
-def is_allowed_url(url: str) -> bool:
-    # When the repo can't be determined, don't block on URLs (we'd otherwise
-    # break every push). The destructive-subcommand checks still apply.
-    if not ALLOWED_REPO:
-        return True
-    url = url.strip("'\"").rstrip("/")
-    if url.endswith(".git"):
-        url = url[:-4]
-    return url.endswith(f"/{ALLOWED_REPO}") or url.endswith(f":{ALLOWED_REPO}")
-
-
 def check_github_scope(cmd: str) -> None:
-    if not re.search(r"(?:^|[\s;&|`(])(?:gh|git)\b", cmd):
+    """Block irreversible `gh repo` actions on *any* repo.
+
+    Repo *scope* is deliberately not enforced (see the module docstring): cross-
+    repo work is allowed, bounded by what the gh auth token (PAT) can reach. What
+    remains is an accident guard against destructive subcommands, which are
+    damaging no matter which repo they hit."""
+    if not re.search(r"(?:^|[\s;&|`(])gh\b", cmd):
         return
-
-    if ALLOWED_REPO:
-        for m in re.finditer(r"(?:--repo|-R)(?:\s+|=)['\"]?([^\s'\"]+)", cmd):
-            repo = m.group(1)
-            if not is_placeholder_repo(repo) and repo != ALLOWED_REPO:
-                deny(f"Blocked gh --repo {repo}: only {ALLOWED_REPO} is allowed in this project.")
-
-        for m in re.finditer(
-            r"\bgh\s+api\s+(?:[^\s]+\s+)*['\"]?/?repos/([^/'\"\s]+/[^/'\"\s]+)",
-            cmd,
-        ):
-            repo = m.group(1)
-            if not is_placeholder_repo(repo) and repo != ALLOWED_REPO:
-                deny(f"Blocked gh api repos/{repo}: only {ALLOWED_REPO} is allowed in this project.")
 
     if re.search(r"\bgh\s+repo\s+(delete|transfer|archive|rename|fork)\b", cmd):
         deny("Blocked destructive gh repo subcommand (delete/transfer/archive/rename/fork).")
 
     if re.search(r"\bgh\s+repo\s+create\b", cmd):
         deny("Blocked gh repo create: this project should not create new GitHub repos.")
-
-    for m in re.finditer(
-        r"\bgit\s+(?:-C\s+\S+\s+)?remote\s+(?:add|set-url)\s+(?:--\S+\s+)*\S+\s+(\S+)",
-        cmd,
-    ):
-        url = m.group(1)
-        if not is_allowed_url(url):
-            deny(f"Blocked git remote add/set-url to {url}: only {ALLOWED_REPO} is allowed.")
-
-    # push / clone / fetch / pull aimed at any non-allowlisted URL. A remote
-    # *name* (`origin`) or local path is fine; only URL-looking tokens are
-    # checked. Scan the *whole* git invocation, not just post-subcommand args, so
-    # a URL injected via a leading config override is inspected too — whether in
-    # the value (`-c remote.origin.url=<url> fetch origin`) or the key
-    # (`-c url.<url>.insteadOf=x pull`). `is_allowed_url` already matches the repo
-    # at the end of the token, so test the whole token rather than guessing where
-    # the URL sits.
-    for m in re.finditer(r"\bgit\b([^|;&\n]*)", cmd):
-        body = m.group(1)
-        sub = re.search(r"\b(push|clone|fetch|pull)\b", body)
-        if not sub:
-            continue
-        for token in body.split():
-            cand = token.strip("'\"")
-            looks_like_url = "://" in cand or (cand.count(":") and "@" in cand and "github" in cand.lower())
-            if looks_like_url and not is_allowed_url(cand):
-                deny(f"Blocked git {sub.group(1)} to {cand}: only {ALLOWED_REPO} is allowed.")
 
 
 def check_sudo(cmd: str) -> None:
