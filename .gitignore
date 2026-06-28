@@ -1,0 +1,14 @@
+# Git worktrees (branch work lives here; see AGENTS.md)
+.worktrees/
+
+# Codex review artifacts + dedup state (generated at runtime)
+.claude/logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS noise
+.DS_Store

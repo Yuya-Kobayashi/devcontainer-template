@@ -1,0 +1,62 @@
+{
+  // Auto-names the container after the workspace folder, so a repo cloned from
+  // this template needs no rename here.
+  "name": "${localWorkspaceFolderBasename}",
+  // To expose a local dev server to the host browser, uncomment and set the port.
+  // appPort publishes at the Docker level (-p N:N) so the devcontainer CLI gets
+  // it without VS Code's forwardPorts.
+  // "appPort": [8080],
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "upgradePackages": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+    // Claude Code is intentionally NOT installed via the (npm-based,
+    // version-unpinnable) claude-code devcontainer feature, which froze the CLI
+    // at image-build time. post-create.sh runs the native installer into
+    // ~/.local/bin on every create so the container tracks latest like the host.
+  },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
+  "mounts": [
+    // --- Shared across ALL projects cloned from this template ---------------
+    // Fixed volume names (no ${devcontainerId}), so every project mounts the
+    // SAME Docker volume: authenticate Claude / Codex once and the login is
+    // reused everywhere. Trade-off: if two of these containers run at the same
+    // time they share ~/.claude.json (project state is last-write-wins; the
+    // auth token — the thing we want shared — is unaffected).
+    "source=claude-config-shared,target=/home/vscode/.claude,type=volume",
+    "source=codex-config-shared,target=/home/vscode/.codex,type=volume",
+    // --- Per-project (isolated) --------------------------------------------
+    // ${devcontainerId} is unique per workspace, so each project authenticates
+    // gh separately (different GitHub credentials per repo) while still
+    // surviving rebuilds of that same project.
+    "source=gh-config-${devcontainerId},target=/home/vscode/.config/gh,type=volume"
+  ],
+  "containerEnv": {
+    "COLORTERM": "truecolor",
+    // Keep ~/.claude.json (auth + project state) on the persisted .claude
+    // volume. Claude Code writes it atomically (temp file + rename), which
+    // clobbers any symlink shim, so point CLAUDE_CONFIG_DIR at the volume and
+    // let it store .claude.json there directly ($CLAUDE_CONFIG_DIR/.claude.json).
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "CODEX_HOME": "/home/vscode/.codex",
+    "FORCE_COLOR": "1",
+    "HTTP_PROXY": "http://127.0.0.1:3128",
+    "HTTPS_PROXY": "http://127.0.0.1:3128",
+    "http_proxy": "http://127.0.0.1:3128",
+    "https_proxy": "http://127.0.0.1:3128",
+    "NO_PROXY": "localhost,127.0.0.1,::1",
+    "no_proxy": "localhost,127.0.0.1,::1"
+  },
+  "postCreateCommand": ".devcontainer/post-create.sh",
+  "postStartCommand": "sudo /usr/local/bin/devc-init-firewall.sh",
+  "remoteUser": "vscode"
+}

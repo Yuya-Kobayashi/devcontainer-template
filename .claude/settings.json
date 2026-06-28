@@ -1,0 +1,120 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "WebFetch(domain:github.com)",
+
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(git add*)",
+      "Bash(git commit -m*)",
+      "Bash(git push*)",
+      "Bash(git pull*)",
+      "Bash(git fetch*)",
+      "Bash(git rebase*)",
+      "Bash(git stash*)",
+      "Bash(git worktree*)",
+      "Bash(git -C*)",
+      "Bash(git remote -v)",
+      "Bash(git remote get-url*)",
+
+      "Bash(gh auth status*)",
+      "Bash(gh project*)",
+      "Bash(gh label*)",
+      "Bash(gh issue*)",
+      "Bash(gh pr*)",
+      "Bash(gh api*)",
+
+      "Bash(ls*)",
+      "Bash(pwd)",
+      "Bash(cat*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(wc*)",
+      "Bash(grep*)",
+      "Bash(rg*)",
+      "Bash(find*)",
+      "Bash(fd*)",
+      "Bash(jq*)",
+      "Bash(echo*)",
+      "Bash(printf*)",
+      "Bash(mkdir*)",
+      "Bash(touch*)",
+      "Bash(chmod +x*)",
+
+      "Bash(curl https://api.github.com/*)",
+
+      "Bash(python3 .claude/hooks/*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -m pip install -r*)",
+      "Bash(python3 -m pip install --user*)",
+
+      "Bash(pip install -r*)",
+      "Bash(pip install --user*)",
+      "Bash(pip3 install -r*)",
+      "Bash(pip3 install --user*)",
+
+      "Bash(uv run*)",
+      "Bash(pre-commit*)",
+
+      "Write(.worktrees/**)",
+      "Edit(.worktrees/**)",
+      "Write(.claude/skills/**)",
+      "Edit(.claude/skills/**)"
+    ],
+    "deny": [
+      "Bash(gh repo delete*)",
+      "Bash(gh repo transfer*)",
+      "Bash(gh repo archive*)",
+      "Bash(gh repo rename*)",
+      "Bash(gh repo create*)",
+      "Bash(gh repo fork*)",
+
+      "Read(/home/vscode/.claude/**)",
+      "Read(/home/vscode/.ssh/**)",
+      "Read(/home/vscode/.aws/**)",
+      "Read(/home/vscode/.config/gh/**)",
+      "Read(/home/vscode/.netrc)",
+      "Read(/etc/sudoers)",
+      "Read(/etc/sudoers.d/**)",
+      "Read(/etc/shadow)",
+
+      "Write(/home/vscode/.claude/**)",
+      "Write(/home/vscode/.ssh/**)",
+      "Write(/home/vscode/.aws/**)",
+      "Write(/etc/**)",
+      "Edit(/home/vscode/.claude/**)",
+      "Edit(/home/vscode/.ssh/**)",
+      "Edit(/home/vscode/.aws/**)",
+      "Edit(/etc/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/bash-guard.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/codex-review.py\"",
+            "statusMessage": "Codex reviewing changes..."
+          }
+        ]
+      }
+    ]
+  }
+}
