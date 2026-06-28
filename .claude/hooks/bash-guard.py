@@ -5,13 +5,16 @@ The egress firewall and locked-down sudoers in `.devcontainer/` are the primary
 controls. This hook adds policy-level checks that catch attempts before they
 reach the kernel:
 
-  1. Destructive `gh repo` subcommands (delete/transfer/archive/rename/fork) and
-     `gh repo create`, on any repo. Repo *scope* is intentionally NOT enforced:
-     this checkout may operate on any repo the gh auth token (PAT) can reach, and
-     that token's scope — not a regex in this hook — is the real, enforceable
-     boundary. A string-matching allowlist here is bypassable, so it would only
-     give a false sense of security; the blocks that remain guard against
-     irreversible actions regardless of which repo they target.
+  1. `gh` / `git` commands targeting a repo whose *owner* is outside the allowed
+     set. Cross-repo work within your own account/orgs is allowed, but a repo
+     owned by someone else (an org or collaborator grant the token can reach) is
+     blocked, so a broad PAT can't be steered at an unrelated repo. The allowed
+     owners are the `origin` remote's owner plus anything in
+     $BASH_GUARD_ALLOWED_OWNERS (comma-separated). This is a namespace check, not
+     a security boundary — the PAT's scope is the real boundary; this just keeps
+     an auto-approved agent inside your own namespace. Also blocks the
+     irreversible `gh repo` subcommands (delete/transfer/archive/rename/fork) and
+     `gh repo create`, on any repo.
   2. Any `sudo` invocation. sudoers permits exactly one command (the firewall
      init) and only so the container lifecycle can run it; the agent never
      should, so this hook denies sudo outright.
@@ -37,6 +40,45 @@ PROJECT_DIR = os.environ.get("CLAUDE_PROJECT_DIR") or os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 
+
+def _origin_owner():
+    """The owner (user/org) of the `origin` remote, lowercased, or None.
+
+    `https://github.com/owner/name` and `git@github.com:owner/name` both yield
+    `owner`. None when origin is absent or unparseable, in which case the owner
+    set may be empty and the checks below fall open (we can't tell what's
+    foreign — the firewall and PAT still apply)."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", PROJECT_DIR, "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if r.returncode != 0:
+            return None
+        url = r.stdout.strip().rstrip("/")
+        if url.endswith(".git"):
+            url = url[:-4]
+        m = re.search(r"[:/]([^/:]+)/[^/:]+$", url)
+        return m.group(1).lower() if m else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _allowed_owners():
+    """Lowercased owner allowlist: the origin owner plus $BASH_GUARD_ALLOWED_OWNERS
+    (comma-separated). Empty => can't determine scope => checks fall open."""
+    owners = set()
+    origin = _origin_owner()
+    if origin:
+        owners.add(origin)
+    for part in os.environ.get("BASH_GUARD_ALLOWED_OWNERS", "").split(","):
+        part = part.strip().lower()
+        if part:
+            owners.add(part)
+    return owners
+
+
+ALLOWED_OWNERS = _allowed_owners()
 
 HOME = os.path.expanduser("~")
 SENSITIVE_PATHS = [
@@ -82,21 +124,99 @@ def deny(reason: str) -> None:
     sys.exit(0)
 
 
-def check_github_scope(cmd: str) -> None:
-    """Block irreversible `gh repo` actions on *any* repo.
+def is_placeholder_repo(repo: str) -> bool:
+    """gh expands the `:owner`/`:repo` (and `{owner}`/`{repo}`) placeholders to
+    the *current* repository, so `gh api repos/:owner/:repo/...` targets this
+    repo, not a foreign one — never block it."""
+    return ":" in repo or "{" in repo
 
-    Repo *scope* is deliberately not enforced (see the module docstring): cross-
-    repo work is allowed, bounded by what the gh auth token (PAT) can reach. What
-    remains is an accident guard against destructive subcommands, which are
-    damaging no matter which repo they hit."""
-    if not re.search(r"(?:^|[\s;&|`(])gh\b", cmd):
+
+def owner_allowed(owner: str | None) -> bool:
+    """True when `owner` is in the allowlist. Falls open when the owner can't be
+    determined or the allowlist is empty (origin unknown) — the firewall and PAT
+    scope are the backstops; this check only narrows the GitHub namespace."""
+    if not ALLOWED_OWNERS or owner is None:
+        return True
+    return owner.lower() in ALLOWED_OWNERS
+
+
+def _owner_of_url(url: str) -> str | None:
+    """The owner segment of a GitHub URL, or None if it isn't a GitHub URL we can
+    parse (non-GitHub hosts are left to the firewall)."""
+    url = url.strip("'\"").rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    m = re.search(r"github\.com[:/]([^/:]+)/[^/:\s]+$", url, re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def _deny_owner(what: str, owner: str) -> None:
+    allowed = ", ".join(sorted(ALLOWED_OWNERS)) or "(none detected)"
+    deny(f"Blocked {what}: owner {owner!r} is outside the allowed set "
+         f"[{allowed}]. Add it via $BASH_GUARD_ALLOWED_OWNERS if it's yours.")
+
+
+def check_github_scope(cmd: str) -> None:
+    """Keep `gh`/`git` inside the allowed owner namespace, and block irreversible
+    `gh repo` actions on any repo. See the module docstring (item 1)."""
+    if not re.search(r"(?:^|[\s;&|`(])(?:gh|git)\b", cmd):
         return
+
+    # gh --repo / -R owner/name
+    for m in re.finditer(r"(?:--repo|-R)(?:\s+|=)['\"]?([^\s'\"]+)", cmd):
+        repo = m.group(1)
+        if is_placeholder_repo(repo):
+            continue
+        owner = repo.split("/", 1)[0] if "/" in repo else None
+        if owner and not owner_allowed(owner):
+            _deny_owner(f"gh --repo {repo}", owner)
+
+    # gh api repos/owner/name
+    for m in re.finditer(
+        r"\bgh\s+api\s+(?:[^\s]+\s+)*['\"]?/?repos/([^/'\"\s]+/[^/'\"\s]+)",
+        cmd,
+    ):
+        repo = m.group(1)
+        if is_placeholder_repo(repo):
+            continue
+        owner = repo.split("/", 1)[0]
+        if not owner_allowed(owner):
+            _deny_owner(f"gh api repos/{repo}", owner)
 
     if re.search(r"\bgh\s+repo\s+(delete|transfer|archive|rename|fork)\b", cmd):
         deny("Blocked destructive gh repo subcommand (delete/transfer/archive/rename/fork).")
 
     if re.search(r"\bgh\s+repo\s+create\b", cmd):
         deny("Blocked gh repo create: this project should not create new GitHub repos.")
+
+    # git remote add/set-url <name> <url>
+    for m in re.finditer(
+        r"\bgit\s+(?:-C\s+\S+\s+)?remote\s+(?:add|set-url)\s+(?:--\S+\s+)*\S+\s+(\S+)",
+        cmd,
+    ):
+        owner = _owner_of_url(m.group(1))
+        if owner and not owner_allowed(owner):
+            _deny_owner(f"git remote add/set-url to {m.group(1)}", owner)
+
+    # push / clone / fetch / pull aimed at a GitHub URL outside the namespace. A
+    # remote *name* (`origin`) or local path is fine; only URL-looking tokens are
+    # checked. Scan the *whole* git invocation, not just post-subcommand args, so
+    # a URL injected via a leading config override is inspected too — whether in
+    # the value (`-c remote.origin.url=<url> fetch origin`) or the key
+    # (`-c url.<url>.insteadOf=x pull`).
+    for m in re.finditer(r"\bgit\b([^|;&\n]*)", cmd):
+        body = m.group(1)
+        sub = re.search(r"\b(push|clone|fetch|pull)\b", body)
+        if not sub:
+            continue
+        for token in body.split():
+            cand = token.strip("'\"")
+            looks_like_url = "://" in cand or (cand.count(":") and "@" in cand and "github" in cand.lower())
+            if not looks_like_url:
+                continue
+            owner = _owner_of_url(cand)
+            if owner and not owner_allowed(owner):
+                _deny_owner(f"git {sub.group(1)} to {cand}", owner)
 
 
 def check_sudo(cmd: str) -> None:
