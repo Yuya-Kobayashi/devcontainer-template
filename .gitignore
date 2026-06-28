@@ -4,6 +4,10 @@
 # Codex review artifacts + dedup state (generated at runtime)
 .claude/logs/
 
+# Shared local cache — large, re-derivable data skills download/build into the
+# main checkout (see AGENTS.md -> "Shared cache vs. corpus" / repo_paths.cache_root)
+/cache/
+
 # Python
 __pycache__/
 *.py[cod]

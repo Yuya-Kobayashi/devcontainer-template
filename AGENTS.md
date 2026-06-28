@@ -56,6 +56,37 @@ via a Pull Request — never push directly to `main`:
 2. `gh pr create --base main --title "..." --body "..."` (link the issue with `Closes #N`).
 3. After merge, `git worktree remove .worktrees/<project>/<slug>` from the main checkout.
 
+## Shared cache vs. corpus
+
+Worktree isolation is the point — but two classes of repo-rooted data want to
+escape it in opposite directions. `.claude/skills/_lib/repo_paths.py` resolves
+both so a skill works the same whether it runs in the main checkout or in any
+worktree:
+
+- **Cache** (`cache_root()`) — large, gitignored, re-derivable data a skill
+  *downloads* or *builds* (datasets, model weights, dependency caches, fetched
+  results). It always resolves to the **main checkout** (via `git rev-parse
+  --git-common-dir`, which every worktree shares), so N agents download once and
+  read the same bytes — never once per worktree. By convention shared caches
+  live under the gitignored top-level `cache/`.
+- **Corpus** (`corpus_root()`) — tracked, committable artifacts a run *produces
+  and commits*. It resolves to `$AGENT_CORPUS_ROOT` when an orchestrator sets it
+  to the run's worktree (so output is committed in place), and otherwise
+  collapses to the main checkout. Unset = identical to a plain run, so the split
+  is a no-op until a multi-agent driver opts in.
+
+Use them from a skill like:
+
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "_lib"))
+from repo_paths import cache_root, corpus_root
+
+vods = cache_root() / "cache" / "vods"        # shared, download once
+report = corpus_root() / "reports" / "out.md"  # committed by this run
+```
+
 ## Automated review
 
 When a turn ends with uncommitted code changes, the **Codex Stop hook** reviews
