@@ -26,18 +26,17 @@
     "--cap-add=NET_RAW"
   ],
   "mounts": [
-    // --- Shared across ALL projects cloned from this template ---------------
-    // Fixed volume names (no ${devcontainerId}), so every project mounts the
-    // SAME Docker volume: authenticate Claude / Codex once and the login is
-    // reused everywhere. Trade-off: if two of these containers run at the same
-    // time they share ~/.claude.json (project state is last-write-wins; the
-    // auth token — the thing we want shared — is unaffected).
-    "source=claude-config-shared,target=/home/vscode/.claude,type=volume",
-    "source=codex-config-shared,target=/home/vscode/.codex,type=volume",
     // --- Per-project (isolated) --------------------------------------------
-    // ${devcontainerId} is unique per workspace, so each project authenticates
-    // gh separately (different GitHub credentials per repo) while still
-    // surviving rebuilds of that same project.
+    // Every config volume is keyed to ${devcontainerId}, which is unique per
+    // workspace, so each project cloned from this template gets its OWN Claude,
+    // Codex, and gh state. Containers can run concurrently with no shared
+    // mutable state to clobber — Claude rewrites ~/.claude.json atomically
+    // (temp file + rename), so a shared volume would be last-write-wins across
+    // projects. Trade-off: authenticate each tool once per repo (claude login /
+    // codex login / gh auth login). All three volumes survive rebuilds of that
+    // same project.
+    "source=claude-config-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=codex-config-${devcontainerId},target=/home/vscode/.codex,type=volume",
     "source=gh-config-${devcontainerId},target=/home/vscode/.config/gh,type=volume"
   ],
   "containerEnv": {
