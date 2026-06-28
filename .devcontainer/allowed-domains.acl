@@ -1,0 +1,36 @@
+# FQDN allowlist for the devcontainer egress proxy (see squid.conf).
+# Loaded by Squid as an `acl ... dstdomain` source file. A leading dot matches
+# the bare host plus all subdomains; bare entries match only that host.
+#
+# This is the project-agnostic baseline: the two coding agents, GitHub, and
+# PyPI. Add a project's own endpoints below the marker. After editing, either
+# rebuild the container or hot-reload without one:
+#   sudo cp .devcontainer/allowed-domains.acl /etc/squid/allowed-domains.acl
+#   sudo /usr/sbin/squid -k reconfigure
+# A blocked request shows up as TCP_DENIED in `sudo tail -f /var/log/squid/access.log`.
+
+# --- Coding agents ---
+# Anthropic / Claude Code (the CLI itself + telemetry + the native installer at
+# claude.ai, used by post-create.sh and the background auto-updater).
+.anthropic.com
+.claude.ai
+.claude.com
+.sentry.io
+# OpenAI / ChatGPT (Codex CLI install script + binary download, auth, API).
+.openai.com
+.chatgpt.com
+
+# --- Source control / packages ---
+# GitHub (git, gh CLI, raw content, container registry).
+.github.com
+.githubusercontent.com
+ghcr.io
+# PyPI (pip / uv dependencies).
+.pypi.org
+.pythonhosted.org
+
+# --- Project-specific endpoints ---------------------------------------------
+# Add the hostnames your project needs below, e.g.:
+#   .huggingface.co        # model weights
+#   .googleapis.com        # Google APIs
+# (a leading dot covers all subdomains).

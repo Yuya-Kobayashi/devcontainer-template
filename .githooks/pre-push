@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+#
+# pre-push: kick off a non-blocking Codex review of the branch being pushed.
+#
+# Why this exists: the Codex review Stop hook (.claude/hooks/codex-review.py) only
+# sees the worktrees *this* Claude session edited, derived from the session
+# transcript. A PR authored by a subagent edits files recorded in the subagent's
+# transcript, so the Stop hook never discovers that worktree and the PR ships
+# unreviewed. A git hook fires on the push regardless of who authored it, closing
+# that gap. See codex-review.py's `--pre-push` mode for the review logic.
+#
+# Advisory by design: the review runs *detached* so the push isn't delayed by the
+# minutes-long Codex run, and this hook always exits 0 — it never blocks or
+# rejects the push. The result lands in .claude/logs/codex-reviews/ (full body)
+# and .claude/logs/codex-review.jsonl (summary index), to read before you merge.
+#
+# Installed by the devcontainer post-create as a thin shim in the active git
+# hooks dir that execs this committed script, so the hook and the reviewer are
+# always the same committed version.
+set -u
+
+repo="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+hook="$repo/.claude/hooks/codex-review.py"
+[ -f "$hook" ] || exit 0
+command -v codex   >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+# Git feeds the refs being pushed on stdin, one per line:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# Collect the local SHAs and hand them to the reviewer so it can tell whether the
+# push actually includes this worktree's HEAD (the commit it can faithfully
+# review) versus some other branch. Skip deletions (all-zero local sha) and any
+# malformed line. Empty stdin (manual run) -> the reviewer falls back to HEAD.
+shas=()
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  case "$local_sha" in
+    *[!0-9a-fA-F]*) continue ;;   # not a hex object name
+    *[!0]*) shas+=("$local_sha") ;;  # has a non-zero digit -> a real commit
+  esac
+done
+
+# Detach into its own session with stdin/stdout/stderr cut loose, so the review
+# outlives this hook and the push completes immediately. cwd stays the worktree
+# being pushed, so codex-review.py resolves the right merge-base.
+if command -v setsid >/dev/null 2>&1; then
+  setsid python3 "$hook" --pre-push ${shas[@]+"${shas[@]}"} </dev/null >/dev/null 2>&1 &
+else
+  nohup python3 "$hook" --pre-push ${shas[@]+"${shas[@]}"} </dev/null >/dev/null 2>&1 &
+fi
+
+exit 0
