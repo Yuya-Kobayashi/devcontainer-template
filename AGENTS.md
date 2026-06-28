@@ -1,12 +1,16 @@
 # AGENTS.md
 
+## Project
+
+_Describe what this repo is: its goals, data sources, layout, and the
+build/test/run/tooling conventions an agent needs. This placeholder ships with
+the devcontainer template — replace it with the real thing and trim anything
+below that doesn't apply._
+
 `AGENTS.md` is the shared source of truth for Claude Code, Codex, and any other
 coding agent working in this repo. `CLAUDE.md` is a short note plus an
 `@AGENTS.md` import so Claude Code loads this file every session — keep the
 content here, not duplicated there.
-
-This file ships with the devcontainer template. **Replace the "Project" section
-below with what this repo actually is**, and trim anything that doesn't apply.
 
 ## Agent environment notes
 
@@ -59,8 +63,3 @@ them and feeds findings back for you to address (`.claude/hooks/codex-review.py`
 On `git push`, the **pre-push hook** runs an advisory Codex review of the pushed
 commits, archived under `.claude/logs/codex-reviews/`. Both no-op silently when
 Codex isn't installed/logged in.
-
-## Project
-
-_Describe what this repo is, its goals, data sources, layout, and the
-build/test/run/tooling conventions an agent needs. (Delete this placeholder.)_
