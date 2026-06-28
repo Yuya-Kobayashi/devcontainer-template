@@ -22,7 +22,8 @@ exactly one command — the firewall script — after first boot. Claude runs in
 `bypassPermissions` mode (`.claude/settings.json`), but the firewall is the real
 containment boundary; `.claude/settings.json` additionally denies reads/writes
 to credentials (`~/.ssh`, `~/.aws`, gh config, `/etc`, …) and a `bash-guard.py`
-PreToolUse hook blocks `sudo`, foreign-repo git/gh, and main-branch checkouts.
+PreToolUse hook blocks `sudo`, out-of-namespace git/gh (repos whose owner isn't
+in the allowed set), and main-branch checkouts.
 
 ## Credentials
 
