@@ -28,18 +28,25 @@ PreToolUse hook blocks `sudo`, foreign-repo git/gh, and main-branch checkouts.
 
 | Tool         | Volume                                        | Scope |
 |--------------|-----------------------------------------------|-------|
-| Claude Code  | `claude-config-shared`                        | **Shared** across every project from this template |
-| Codex        | `codex-config-shared`                         | **Shared** across every project |
+| Claude Code  | `claude-config-${devcontainerId}`             | **Per project** (unique per repo) |
+| Codex        | `codex-config-${devcontainerId}`              | **Per project** (unique per repo) |
 | GitHub (`gh`)| `gh-config-${devcontainerId}`                 | **Per project** (unique per repo) |
 
-Shared volumes use a fixed name, so you `claude login` / `codex login` **once**
-and it's reused everywhere. The `gh` volume is keyed to `${devcontainerId}`
-(unique per workspace), so each repo authenticates GitHub separately — run
-`gh auth login` in each. All three survive container rebuilds.
+Every volume is keyed to `${devcontainerId}` (unique per workspace), so each
+repo cloned from this template gets its **own** Claude, Codex, and GitHub state.
+Authenticate each tool once per repo — `claude login`, `codex login`, and
+`gh auth login` — after which it persists. All three volumes survive container
+rebuilds of that same project.
 
-> Note: don't run two of these containers at the same time if you can avoid it —
-> they share `~/.claude.json`. The auth token (what we want shared) is fine;
-> per-project state is last-write-wins.
+> Concurrency: because no config volume is shared, you can run multiple of these
+> containers **at the same time** without them clobbering each other. (Claude
+> rewrites `~/.claude.json` atomically, so a shared volume would be
+> last-write-wins on per-project state — keying per project avoids that.)
+>
+> Prefer to log in just once and share auth across repos instead? Switch the
+> Claude/Codex `source=` lines in `devcontainer.json` back to fixed names
+> (`claude-config-shared`, `codex-config-shared`) — but then avoid running two
+> containers concurrently.
 
 ## Adding an allowed domain
 
