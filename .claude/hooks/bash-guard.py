@@ -78,7 +78,21 @@ def _allowed_owners():
     return owners
 
 
-ALLOWED_OWNERS = _allowed_owners()
+#: Lazily-computed owner allowlist. `None` means "not resolved yet" (distinct from
+#: an empty set, which is a valid "couldn't determine scope" result). Resolved by
+#: `allowed_owners()` only when a gh/git command is actually seen, so the local
+#: `git remote get-url origin` in `_origin_owner` never runs for the common case
+#: (ls, cat, …) — the hook fires on *every* Bash call, but only git work pays it.
+_ALLOWED_OWNERS = None
+
+
+def allowed_owners():
+    """The owner allowlist, computed once per hook process and cached."""
+    global _ALLOWED_OWNERS
+    if _ALLOWED_OWNERS is None:
+        _ALLOWED_OWNERS = _allowed_owners()
+    return _ALLOWED_OWNERS
+
 
 HOME = os.path.expanduser("~")
 SENSITIVE_PATHS = [
@@ -135,9 +149,10 @@ def owner_allowed(owner: str | None) -> bool:
     """True when `owner` is in the allowlist. Falls open when the owner can't be
     determined or the allowlist is empty (origin unknown) — the firewall and PAT
     scope are the backstops; this check only narrows the GitHub namespace."""
-    if not ALLOWED_OWNERS or owner is None:
+    owners = allowed_owners()
+    if not owners or owner is None:
         return True
-    return owner.lower() in ALLOWED_OWNERS
+    return owner.lower() in owners
 
 
 def _owner_of_url(url: str) -> str | None:
@@ -151,7 +166,7 @@ def _owner_of_url(url: str) -> str | None:
 
 
 def _deny_owner(what: str, owner: str) -> None:
-    allowed = ", ".join(sorted(ALLOWED_OWNERS)) or "(none detected)"
+    allowed = ", ".join(sorted(allowed_owners())) or "(none detected)"
     deny(f"Blocked {what}: owner {owner!r} is outside the allowed set "
          f"[{allowed}]. Add it via $BASH_GUARD_ALLOWED_OWNERS if it's yours.")
 
