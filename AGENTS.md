@@ -25,6 +25,13 @@ Keep credentials out of the repository. Claude state belongs in
 both are persisted named volumes. The `bash-guard.py` PreToolUse hook blocks
 reads of credential dirs (`~/.ssh`, `~/.aws`, gh config, …) and denies `sudo`.
 
+`gh`/`git` may target any repo whose **owner** is in the allowed set — the
+`origin` owner plus a comma-separated `$BASH_GUARD_ALLOWED_OWNERS` (set it to add
+the orgs you own). Repos owned by anyone else are blocked, so a broad auth token
+can't be aimed at an unrelated repo; the token's own scope is still the real
+boundary. The destructive `gh repo` subcommands (delete/transfer/archive/rename/
+fork) and `gh repo create` stay blocked regardless of owner.
+
 ## When to use a worktree
 
 The **main checkout stays on `main`** — several sessions may run against it at
