@@ -63,6 +63,27 @@ via a Pull Request — never push directly to `main`:
 2. `gh pr create --base main --title "..." --body "..."` (link the issue with `Closes #N`).
 3. After merge, `git worktree remove .worktrees/<project>/<slug>` from the main checkout.
 
+## Model split: Fable orchestrates, Opus codes
+
+When the main loop runs on a **Fable** (Mythos-class) model, spend it on what
+it is uniquely good at — planning, architecture, review, judgment calls — and
+delegate the mechanical work to the **`opus-coder`** agent
+(`.claude/agents/opus-coder.md`, pinned `model: opus`):
+
+- **Delegate to `opus-coder`:** writing and editing files, and the execution
+  that belongs to the change (running its tests, builds, formatters). Hand it
+  a concrete plan, the target files or worktree, and acceptance checks; review
+  its report and the diff when it returns.
+- **Keep in the main loop:** planning, code review, orchestration `Bash`
+  (git/gh/skills), research and analysis agents, and anything that needs the
+  full conversation context.
+
+This is a standing instruction — treat it as the user having asked for
+subagent use, every session. It is a convention, not a hook: honor it by
+default, and edit directly only when a delegation round-trip is clearly
+wasteful (e.g. a one-line fix you must verify yourself anyway). On a
+non-Fable main model the split does not apply.
+
 ## Shared cache vs. corpus
 
 Worktree isolation is the point — but two classes of repo-rooted data want to
