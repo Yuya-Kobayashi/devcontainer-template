@@ -63,17 +63,30 @@ via a Pull Request — never push directly to `main`:
 2. `gh pr create --base main --title "..." --body "..."` (link the issue with `Closes #N`).
 3. After merge, `git worktree remove .worktrees/<project>/<slug>` from the main checkout.
 
-## Model split: Fable orchestrates, Opus codes
+## Model split: Fable orchestrates, the coder implements
 
 When the main loop runs on a **Fable** (Mythos-class) model, spend it on what
 it is uniquely good at — planning, architecture, review, judgment calls — and
-delegate the mechanical work to the **`opus-coder`** agent
-(`.claude/agents/opus-coder.md`, pinned `model: opus`):
+delegate the mechanical work to the **`coder`** agent
+(`.claude/agents/coder.md`):
 
-- **Delegate to `opus-coder`:** writing and editing files, and the execution
-  that belongs to the change (running its tests, builds, formatters). Hand it
-  a concrete plan, the target files or worktree, and acceptance checks; review
+- **Delegate to `coder`:** writing and editing files, and the execution that
+  belongs to the change (running its tests, builds, formatters). Hand it a
+  concrete plan, the target files or worktree, and acceptance checks; review
   its report and the diff when it returns.
+- **Pick the coder's model per task.** The agent defaults to `model: opus`;
+  the Agent tool's per-invocation `model` parameter outranks that default.
+  The economics: rework is billed at Fable rates (the orchestrator reviews
+  and re-briefs every failed attempt), so cheap-model savings only survive
+  when the task cannot need judgment mid-implementation.
+  - **opus** (default) — multi-file or design-adjacent changes, tricky
+    logic, debugging, anything whose plan may need judgment mid-flight.
+  - **sonnet** — routine, fully-specified, low-risk work: apply a
+    spelled-out diff, renames, boilerplate, doc/config tweaks with clear
+    acceptance checks.
+
+  Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it outranks both the per-call
+  parameter and the frontmatter, silently removing this choice.
 - **Keep in the main loop:** planning, code review, orchestration `Bash`
   (git/gh/skills), research and analysis agents, and anything that needs the
   full conversation context.
