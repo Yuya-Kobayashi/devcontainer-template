@@ -69,27 +69,42 @@ When the main loop runs on a **Fable** (Mythos-class) model, spend it on what
 it is uniquely good at — planning, architecture, judgment calls — and
 delegate the mechanical work to the pinned agents in `.claude/agents/`:
 
-| Agent | Model | Delegate to it |
+| Agent | Tier | Delegate to it |
 |---|---|---|
-| `coder` | opus | Writing/editing files + the change's own tests, builds, formatters — anything whose plan may need judgment mid-flight |
-| `coder-sonnet` | sonnet | Routine, fully-specified, low-risk implementation: spelled-out diffs, renames, boilerplate, doc/config tweaks with clear acceptance checks |
-| `worker` | opus | Non-editing legwork: bulk reading, verifying a change against acceptance checks, adversarial second opinions, research sweeps — returns findings, never edits |
-| `worker-sonnet` | sonnet | Mechanical legwork: grep-and-summarize sweeps, checklist verification, inventory-style fact collection |
+| `coder` | full | Writing/editing files + the change's own tests, builds, formatters — anything whose plan may need judgment mid-flight |
+| `coder-lite` | budget | Routine, fully-specified, low-risk implementation: spelled-out diffs, renames, boilerplate, doc/config tweaks with clear acceptance checks |
+| `worker` | full | Non-editing legwork: bulk reading, codebase exploration/search, verifying a change against acceptance checks, adversarial second opinions, research sweeps — returns findings, never edits |
+| `worker-lite` | budget | Mechanical legwork: grep-and-summarize sweeps, checklist verification, inventory-style fact collection |
 
-Hand `coder`/`coder-sonnet` a concrete plan, the target files or worktree,
+Hand `coder`/`coder-lite` a concrete plan, the target files or worktree,
 and acceptance checks, and review the report and diff when it returns.
-Choose the sonnet variants only when the task cannot need judgment
-mid-flight: rework is reviewed and re-briefed by the orchestrator at Fable
-rates, which erases cheap-model savings quickly.
+Choose the budget tier only when the task cannot need judgment mid-flight:
+rework is reviewed and re-briefed by the orchestrator at main-loop rates,
+which erases budget-tier savings quickly.
+
+**Agent names are role + tier, never model names.** Each agent pins its
+model in its own frontmatter (`model:`), and that line is the only place a
+model is named — retargeting a tier to a new model is a one-line
+frontmatter edit with no renames anywhere else. Keep model names out of
+agent names, docs, and prompts.
 
 **Choose the model by choosing the agent — pins live in frontmatter, never
 the call.** The Agent tool's per-invocation `model` override does not
 survive an interrupt: resuming a background agent re-resolves the model
 from the agent definition, and an overridden run silently continues on the
-session model (observed: 29 Opus turns, then Fable from the resume onward).
-Use a per-call override only for a short, foreground, run-to-completion
-call. Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it outranks both the
-frontmatter and the per-call parameter, removing the choice entirely.
+session model (observed: 29 turns on the pinned model, then the session
+model from the resume onward). Use a per-call override only for a short,
+foreground, run-to-completion call. Never set `CLAUDE_CODE_SUBAGENT_MODEL`
+— it outranks both the frontmatter and the per-call parameter, removing
+the choice entirely.
+
+**Don't spawn unpinned agents on Fable.** The built-in agent types
+(general-purpose, Explore, Plan, claude, guide agents) carry no frontmatter
+pin, so they inherit the session model and bill at main-loop rates. Route
+every delegation through the pinned roster above — `worker` covers what
+Explore or a read-only general-purpose spawn would do; `coder` covers
+implementation. If a task genuinely fits no pinned agent, run it in the
+main loop or add a pinned agent for it rather than reaching for a built-in.
 
 **Keep in the main loop:** planning, final review and judgment,
 orchestration `Bash` (git/gh/skills), and anything that needs the full

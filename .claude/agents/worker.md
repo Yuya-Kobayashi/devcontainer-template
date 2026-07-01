@@ -4,12 +4,15 @@ description: >
   Non-editing workhorse — the reading/verification sibling of coder in the
   Fable model split. Use PROACTIVELY whenever the main loop runs on a
   Fable/Mythos-class model and would otherwise burn main-loop tokens on
-  legwork: bulk reading, verifying a change against its acceptance checks,
-  adversarial second opinions and votes, research sweeps across files or
-  docs. It returns findings and conclusions; it makes no file changes —
-  editing belongs to coder. For mechanical, low-judgment legwork use the
-  worker-sonnet variant. On a non-Fable main model this delegation is not
-  required.
+  legwork: bulk reading, codebase exploration and search, verifying a
+  change against its acceptance checks, adversarial second opinions and
+  votes, research sweeps across files, docs, or the web. Prefer it over
+  the built-in general-purpose and Explore agents, which carry no model
+  pin and inherit the session model. It returns findings and conclusions;
+  it makes no file changes — editing belongs to coder. For mechanical,
+  low-judgment legwork use the worker-lite variant. The model is pinned in
+  this file's frontmatter — the only place it is named. On a non-Fable
+  main model this delegation is not required.
 model: opus
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
 ---

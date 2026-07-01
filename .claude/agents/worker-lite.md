@@ -1,12 +1,13 @@
 ---
-name: worker-sonnet
+name: worker-lite
 description: >
-  Sonnet-pinned variant of worker for mechanical, low-judgment legwork:
+  Budget-tier variant of worker for mechanical, low-judgment legwork:
   large grep-and-summarize sweeps, formatting/lint verification, checking
   a diff against an explicit checklist, inventory-style fact collection.
   Same operating rules as worker; pick this variant only when the
-  conclusion cannot hinge on subtle judgment. Exists as a pinned
-  definition because frontmatter is the only model selection that
+  conclusion cannot hinge on subtle judgment. The model is pinned in this
+  file's frontmatter and named nowhere else: retarget it there without
+  renaming the agent. Frontmatter is also the only model selection that
   survives a background-agent resume.
 model: sonnet
 tools: Read, Glob, Grep, Bash, WebFetch, WebSearch

@@ -6,11 +6,12 @@ description: >
   main loop runs on a Fable/Mythos-class model: the main loop plans,
   reviews, and orchestrates, and delegates every code-writing task here
   with a plan, the target files or worktree, and acceptance checks.
-  Pinned to Opus; for routine, fully-specified, low-risk implementation
-  use the coder-sonnet variant instead (frontmatter pins are the only
-  model selection that survives a background-agent resume). Not for
-  planning, analysis, research, or review — those stay in the main loop.
-  On a non-Fable main model this delegation is not required.
+  Runs the full-capability tier pinned in this file's frontmatter — the
+  only place its model is named; retarget it there without renaming the
+  agent. For routine, fully-specified, low-risk implementation use the
+  coder-lite variant instead. Not for planning, analysis, research, or
+  review — those stay in the main loop. On a non-Fable main model this
+  delegation is not required.
 model: opus
 ---
 
