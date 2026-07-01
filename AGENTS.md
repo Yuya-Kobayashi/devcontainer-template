@@ -63,33 +63,37 @@ via a Pull Request — never push directly to `main`:
 2. `gh pr create --base main --title "..." --body "..."` (link the issue with `Closes #N`).
 3. After merge, `git worktree remove .worktrees/<project>/<slug>` from the main checkout.
 
-## Model split: Fable orchestrates, the coder implements
+## Model split: Fable orchestrates, pinned agents execute
 
 When the main loop runs on a **Fable** (Mythos-class) model, spend it on what
-it is uniquely good at — planning, architecture, review, judgment calls — and
-delegate the mechanical work to the **`coder`** agent
-(`.claude/agents/coder.md`):
+it is uniquely good at — planning, architecture, judgment calls — and
+delegate the mechanical work to the pinned agents in `.claude/agents/`:
 
-- **Delegate to `coder`:** writing and editing files, and the execution that
-  belongs to the change (running its tests, builds, formatters). Hand it a
-  concrete plan, the target files or worktree, and acceptance checks; review
-  its report and the diff when it returns.
-- **Pick the coder's model per task.** The agent defaults to `model: opus`;
-  the Agent tool's per-invocation `model` parameter outranks that default.
-  The economics: rework is billed at Fable rates (the orchestrator reviews
-  and re-briefs every failed attempt), so cheap-model savings only survive
-  when the task cannot need judgment mid-implementation.
-  - **opus** (default) — multi-file or design-adjacent changes, tricky
-    logic, debugging, anything whose plan may need judgment mid-flight.
-  - **sonnet** — routine, fully-specified, low-risk work: apply a
-    spelled-out diff, renames, boilerplate, doc/config tweaks with clear
-    acceptance checks.
+| Agent | Model | Delegate to it |
+|---|---|---|
+| `coder` | opus | Writing/editing files + the change's own tests, builds, formatters — anything whose plan may need judgment mid-flight |
+| `coder-sonnet` | sonnet | Routine, fully-specified, low-risk implementation: spelled-out diffs, renames, boilerplate, doc/config tweaks with clear acceptance checks |
+| `worker` | opus | Non-editing legwork: bulk reading, verifying a change against acceptance checks, adversarial second opinions, research sweeps — returns findings, never edits |
+| `worker-sonnet` | sonnet | Mechanical legwork: grep-and-summarize sweeps, checklist verification, inventory-style fact collection |
 
-  Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it outranks both the per-call
-  parameter and the frontmatter, silently removing this choice.
-- **Keep in the main loop:** planning, code review, orchestration `Bash`
-  (git/gh/skills), research and analysis agents, and anything that needs the
-  full conversation context.
+Hand `coder`/`coder-sonnet` a concrete plan, the target files or worktree,
+and acceptance checks, and review the report and diff when it returns.
+Choose the sonnet variants only when the task cannot need judgment
+mid-flight: rework is reviewed and re-briefed by the orchestrator at Fable
+rates, which erases cheap-model savings quickly.
+
+**Choose the model by choosing the agent — pins live in frontmatter, never
+the call.** The Agent tool's per-invocation `model` override does not
+survive an interrupt: resuming a background agent re-resolves the model
+from the agent definition, and an overridden run silently continues on the
+session model (observed: 29 Opus turns, then Fable from the resume onward).
+Use a per-call override only for a short, foreground, run-to-completion
+call. Never set `CLAUDE_CODE_SUBAGENT_MODEL` — it outranks both the
+frontmatter and the per-call parameter, removing the choice entirely.
+
+**Keep in the main loop:** planning, final review and judgment,
+orchestration `Bash` (git/gh/skills), and anything that needs the full
+conversation context.
 
 This is a standing instruction — treat it as the user having asked for
 subagent use, every session. It is a convention, not a hook: honor it by

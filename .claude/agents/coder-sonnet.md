@@ -1,17 +1,15 @@
 ---
-name: coder
+name: coder-sonnet
 description: >
-  Implementation agent — writes and edits files, and runs the commands,
-  tests, and builds that belong to a change. Use PROACTIVELY whenever the
-  main loop runs on a Fable/Mythos-class model: the main loop plans,
-  reviews, and orchestrates, and delegates every code-writing task here
-  with a plan, the target files or worktree, and acceptance checks.
-  Pinned to Opus; for routine, fully-specified, low-risk implementation
-  use the coder-sonnet variant instead (frontmatter pins are the only
-  model selection that survives a background-agent resume). Not for
-  planning, analysis, research, or review — those stay in the main loop.
-  On a non-Fable main model this delegation is not required.
-model: opus
+  Sonnet-pinned variant of coder for routine, fully-specified, low-risk
+  implementation: apply a spelled-out diff, renames, boilerplate,
+  doc/config tweaks with clear acceptance checks. Same operating rules as
+  coder; pick this variant only when the task cannot need judgment
+  mid-implementation — rework is reviewed and re-briefed by the
+  orchestrator at main-loop rates, which erases cheap-model savings.
+  Exists as a pinned definition because frontmatter is the only model
+  selection that survives a background-agent resume.
+model: sonnet
 ---
 
 You are the implementation half of a model split: the main conversation (a
