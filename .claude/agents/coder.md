@@ -1,13 +1,15 @@
 ---
-name: opus-coder
+name: coder
 description: >
-  Implementation agent pinned to Opus — writes and edits files, and runs the
-  commands, tests, and builds that belong to a change. Use PROACTIVELY
-  whenever the main loop runs on a Fable/Mythos-class model: the main loop
-  plans, reviews, and orchestrates, and delegates every code-writing task
-  here with a plan, the target files or worktree, and acceptance checks.
-  Not for planning, analysis, research, or review — those stay in the main
-  loop. On a non-Fable main model this delegation is not required.
+  Implementation agent — writes and edits files, and runs the commands,
+  tests, and builds that belong to a change. Use PROACTIVELY whenever the
+  main loop runs on a Fable/Mythos-class model: the main loop plans,
+  reviews, and orchestrates, and delegates every code-writing task here
+  with a plan, the target files or worktree, and acceptance checks.
+  Defaults to Opus; for routine, fully-specified, low-risk tasks the
+  orchestrator overrides to Sonnet via the Agent tool's model parameter.
+  Not for planning, analysis, research, or review — those stay in the
+  main loop. On a non-Fable main model this delegation is not required.
 model: opus
 ---
 
